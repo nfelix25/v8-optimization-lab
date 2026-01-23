@@ -2,6 +2,7 @@
 
 > Target stack: Next.js 14 (App Router, React 18, Turbopack dev), Express 4.19+ (Node 22 runtime).
 > Scope: Local learning UI for browsing docs, running experiments via existing scripts, and inspecting artifacts.
+> **Status**: Implementation in progress by Claude Code
 
 ## Phase 0 – Foundations & Decisions
 - [ ] Confirm Node LTS (>= 20, ideally 22.9+) for shared dev/prod parity and compatibility with Next 14 + latest Express.

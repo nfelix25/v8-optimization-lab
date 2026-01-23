@@ -15,14 +15,37 @@ A comprehensive, hands-on learning repository for understanding how Node.js and 
 
 ## 🚀 Quick Start
 
+### Option 1: Web Interface (Recommended for Beginners)
+
 ```bash
 # Clone/navigate to this repository
 cd node-v8-jit-lab
 
-# Install (minimal/zero dependencies)
+# Install dependencies
 npm install
 
-# Run your first experiment
+# Start the web interface (launches both backend and frontend)
+npm run dev
+```
+
+Then open:
+- **Frontend**: http://localhost:3000 (Interactive UI)
+- **API**: http://localhost:4000 (Backend)
+
+The web interface provides:
+- 📚 **Browse documentation** with syntax highlighting
+- 🧪 **Run experiments** through an intuitive form
+- 📊 **View live logs** as experiments execute
+- 📈 **Compare results** visually
+- 💾 **Download artifacts** (traces, CPU profiles)
+
+### Option 2: Command Line Interface
+
+```bash
+# Install
+npm install
+
+# Run your first experiment via CLI
 npm run exp -- --exp 01-hidden-classes --variant baseline
 npm run exp -- --exp 01-hidden-classes --variant deopt --trace on
 
@@ -95,7 +118,15 @@ Start here if you're new to V8 optimization:
 ```
 /
 ├── README.md                    # You are here
-├── package.json                 # Minimal dependencies
+├── package.json                 # Workspace configuration
+├── frontend/                    # Next.js web interface
+│   ├── app/                    # Pages (docs, experiments, runs)
+│   └── components/             # React components
+├── server/                      # Express API backend
+│   ├── src/
+│   │   ├── routes/            # API endpoints
+│   │   └── services/          # Business logic (RunService, etc.)
+│   └── package.json
 ├── docs/                        # Comprehensive guides
 │   ├── 00-how-to-use-this-repo.md
 │   ├── 01-v8-optimization-mental-model.md
@@ -105,31 +136,15 @@ Start here if you're new to V8 optimization:
 │   ├── 05-node-runtime-perf-gotchas.md
 │   └── 06-glossary.md
 ├── scripts/
-│   ├── run-experiment.js        # Experiment runner with tracing
+│   ├── run-experiment.js        # Experiment runner (used by both CLI and web UI)
 │   └── summarize-results.js     # Results analyzer
 ├── experiments/                 # 20 runnable experiments
 │   ├── _template/              # Template for creating new experiments
 │   ├── 01-hidden-classes/
 │   ├── 02-inline-caches/
-│   ├── 03-elements-kinds/
-│   ├── 04-numbers-smis-doubles/
-│   ├── 05-polymorphism-megamorphism/
-│   ├── 06-try-catch-and-bailouts/
-│   ├── 07-arguments-and-rest/
-│   ├── 08-prototypes-and-dynamic-lookup/
-│   ├── 09-delete-in-operators/
-│   ├── 10-closures-escape-analysis/
-│   ├── 11-array-holes-and-bounds-checks/
-│   ├── 12-string-concats-and-slices/
-│   ├── 13-json-parse-shapes/
-│   ├── 14-object-iteration-keys-order/
-│   ├── 15-node-buffer-and-typedarrays/
-│   ├── 16-gc-allocation-pressure/
-│   ├── 17-async-await-microtasks/
-│   ├── 18-turbofan-inlining-thresholds/
-│   ├── 19-wasm-interop-basics/
-│   └── 20-realistic-mini-server-hotpath/
-└── artifacts/                   # Generated results (gitignored)
+│   └── ... (20 total experiments)
+└── artifacts/                   # Generated results
+    └── runs/                   # Run metadata (JSON files)
 ```
 
 Each experiment contains:

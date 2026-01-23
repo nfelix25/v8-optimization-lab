@@ -6,10 +6,19 @@
   "engines": {
     "node": ">=18.0.0"
   },
+  "workspaces": [
+    "server",
+    "frontend"
+  ],
   "scripts": {
     "exp": "node scripts/run-experiment.js",
     "summarize": "node scripts/summarize-results.js",
-    "test": "node --test"
+    "test": "node --test",
+    "dev": "./dev.sh",
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build:server": "cd server && npm run build",
+    "build:frontend": "cd frontend && npm run build"
   },
   "keywords": [
     "v8",
@@ -22,5 +31,7 @@
   ],
   "author": "",
   "license": "MIT",
-  "devDependencies": {}
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
 }

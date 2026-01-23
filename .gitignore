@@ -12,3 +12,15 @@ isolate-*-v8.log
 *.swp
 *.swo
 *~
+
+# Frontend (Next.js)
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+# Backend (Express)
+server/dist/
+server/.tsbuildinfo
+
+# Shared
+shared/dist/
