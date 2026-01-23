@@ -30,7 +30,7 @@ function parseArgs() {
     trace: false,
     profile: false,
     warmup: 1000,
-    repeat: 100000
+    repeat: 100000,
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -139,7 +139,13 @@ async function runExperiment(options) {
   const experimentDir = join(ROOT, 'experiments', options.exp);
   const scriptPath = join(experimentDir, `${options.variant}.js`);
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const artifactDir = join(ROOT, 'artifacts', options.exp, options.variant, timestamp);
+  const artifactDir = join(
+    ROOT,
+    'artifacts',
+    options.exp,
+    options.variant,
+    timestamp
+  );
 
   // Create artifact directory
   await mkdir(artifactDir, { recursive: true });
@@ -168,13 +174,13 @@ Starting...
   const env = {
     ...process.env,
     WARMUP: options.warmup.toString(),
-    REPEAT: options.repeat.toString()
+    REPEAT: options.repeat.toString(),
   };
 
   // Spawn node process
   const nodeProcess = spawn('node', [...nodeFlags, scriptPath], {
     env,
-    cwd: ROOT
+    cwd: ROOT,
   });
 
   let stdout = '';
@@ -219,7 +225,7 @@ Starting...
     v8Version: process.versions.v8,
     platform: process.platform,
     arch: process.arch,
-    timestamp
+    timestamp,
   });
 
   // Print summary
@@ -262,7 +268,7 @@ async function saveArtifacts(artifactDir, data) {
     v8Version,
     platform,
     arch,
-    timestamp
+    timestamp,
   } = data;
 
   // Save stdout
@@ -283,19 +289,19 @@ async function saveArtifacts(artifactDir, data) {
       trace: options.trace,
       profile: options.profile,
       warmup: options.warmup,
-      repeat: options.repeat
+      repeat: options.repeat,
     },
     results: {
       exitCode,
-      durationMs
+      durationMs,
     },
     environment: {
       nodeVersion,
       v8Version,
       platform,
       arch,
-      timestamp
-    }
+      timestamp,
+    },
   };
 
   await writeFile(
