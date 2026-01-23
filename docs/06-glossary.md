@@ -30,16 +30,22 @@ V8's internal representation of object structure. Objects with the same properti
 ### Ignition
 V8's interpreter. Executes bytecode directly, collects type feedback for later optimization. Low startup overhead, decent throughput.
 
+### Sparkplug
+V8's baseline compiler. Converts Ignition bytecode to native machine code quickly using the collected feedback. Sparkplug is the default tier Node hits after a function runs a handful of times. Supports on-stack replacement (OSR) so loops can stay hot while upgrading tiers.
+
 ### Inline Cache (IC)
 Caching mechanism for property access and function calls. Remembers the types seen at a particular call site.
 - **States**: Uninitialized → Monomorphic → Polymorphic → Megamorphic
 - **Transitions**: Generally one-way (can't go back from megamorphic)
 
+### On-Stack Replacement (OSR)
+Technique V8 uses to swap tiers inside a running function. Lets Sparkplug/Maglev drop into a long-running loop without restarting execution. Also used when deoptimizing back to a lower tier.
+
 ### Inlining
 Optimization where the compiler replaces a function call with the function's body. Eliminates call overhead and enables further optimizations.
 
 ### Maglev
-V8's mid-tier optimizing compiler (introduced ~2022). Faster to compile than TurboFan, good enough optimization for most code.
+V8's mid-tier optimizing compiler (introduced ~2022). Much faster to compile than TurboFan while still performing specialization, shape checks, and some inlining. Often needs `--maglev` (or `--stress-maglev`) on current Node releases. Supports OSR up to TurboFan and can be limited via `--max-opt=2` for experiments.
 
 ### Megamorphic
 IC state when a call site has seen 5+ different types. V8 gives up on type-specific optimization. **Silent killer** of performance.
@@ -57,7 +63,7 @@ V8's tagged integer representation. 31-bit signed integers (on 64-bit systems) s
 V8's strategy of optimizing for observed types, then validating assumptions at runtime. If assumptions break, V8 deopts.
 
 ### TurboFan
-V8's top-tier optimizing compiler. Generates highly optimized machine code based on type feedback. Slower to compile but produces the fastest code.
+V8's top-tier optimizing compiler. Generates highly optimized machine code with heavy analysis and inlining. Highest throughput but most expensive to compile, so many hot functions now stay on Maglev unless they prove ultra hot and stable.
 
 ### Type Feedback
 Runtime information V8 collects about the types and values flowing through code. Used to guide speculative optimization.
@@ -91,17 +97,23 @@ Array with holes. Must check for holes on access. Slower than packed.
 
 ## Optimization States
 
-### Unoptimized
-Code running in the Ignition interpreter. Collecting type feedback.
+### Ignition (Interpreter)
+Entry tier. Executes bytecode, gathers feedback, and kicks off Sparkplug batches.
 
-### Optimized
-Code compiled by TurboFan (or Maglev) with speculative assumptions.
+### Sparkplug Baseline Code
+First native tier. Fast to compile, minimal optimization. Most functions run here unless they stay hot.
+
+### Maglev Code
+Mid-tier optimized code. Requires additional hotness; can OSR up to TurboFan or down to Sparkplug if assumptions break.
+
+### TurboFan Code
+Top-tier optimized code. Highest throughput but expensive to compile; V8 only promotes the hottest, most stable functions here.
 
 ### Deoptimized
-Optimized code was discarded due to assumption violations. Back to interpreter.
+V8 discarded optimized code (Maglev or TurboFan) and resumed execution in Sparkplug or Ignition, depending on availability.
 
 ### Optimization Disabled
-Function has been deoptimized too many times. V8 stops trying to optimize it.
+Function has been deoptimized too many times or uses unsupported constructs; V8 stops trying to tier it up.
 
 ---
 
@@ -279,9 +291,11 @@ V8's statistical profiler. More low-level than `--cpu-prof`.
   - **Hidden Class**: Academic/older V8 term
   - **Shape**: General optimization literature term
 
-### Ignition vs. TurboFan
-- **Ignition**: Interpreter (fast startup, decent speed)
-- **TurboFan**: Optimizing compiler (slow startup, fast execution)
+### Ignition vs. Sparkplug vs. Maglev vs. TurboFan
+- **Ignition**: Interpreter (fastest startup, pure bytecode)
+- **Sparkplug**: Baseline compiler (quick native code, low compile cost)
+- **Maglev**: Mid-tier optimizer (speculative, bridges Sparkplug↔TurboFan)
+- **TurboFan**: Top-tier optimizer (slowest compile, fastest steady-state)
 
 ---
 

@@ -37,7 +37,7 @@ npm run summarize
 Start here if you're new to V8 optimization:
 
 1. **Read the mental model**: `docs/01-v8-optimization-mental-model.md`
-   - Understand Ignition (interpreter) and TurboFan (optimizer)
+   - Understand how Ignition, Sparkplug, Maglev, and TurboFan cooperate
    - Learn about hidden classes, inline caches, and speculation
 
 2. **Learn the tools**: `docs/02-tooling-node-v8-flags.md`

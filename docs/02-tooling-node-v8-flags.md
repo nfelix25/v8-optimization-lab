@@ -8,22 +8,52 @@ V8 exposes powerful diagnostic flags that let you observe the optimization proce
 
 ### 1. `--trace-opt`
 
-**What it does**: Logs when functions are optimized.
+**What it does**: Logs tiering events for optimizing compilers (Maglev and TurboFan).
 
 **Output example**:
 ```
-[marking 0x1234abcd <JSFunction add> for optimization]
-[compiling method 0x1234abcd <JSFunction add> using TurboFan]
+[marking 0x1234abcd <JSFunction hot> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x1234abcd <JSFunction hot> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed optimizing 0x1234abcd <JSFunction hot> (target MAGLEV)]
+[marking 0x1234abcd <JSFunction hot> for optimization to TURBOFAN, ConcurrencyMode::kConcurrent, reason: OSR after Maglev]
+[compiling method 0x1234abcd <JSFunction hot> (target TURBOFAN) OSR, mode: ConcurrencyMode::kConcurrent]
 ```
 
-**When to use**: Confirm that hot functions are actually getting optimized.
+**When to use**: Confirm that hot functions are graduating past Sparkplug; inspect whether Maglev ever kicks in before TurboFan.
 
 **Usage**:
 ```bash
+# Default Node builds currently only tier to TurboFan.
 node --trace-opt script.js
+
+# Force-enable Maglev or clamp the highest tier for experiments.
+node --maglev --trace-opt script.js
+node --maglev --max-opt=2 --trace-opt script.js  # limit to Maglev
 ```
 
-### 2. `--trace-deopt`
+> `--trace-opt` does **not** log Sparkplug baseline compilations. Pair it with `--trace-baseline` if you care about those events.
+
+### 2. `--trace-baseline`
+
+**What it does**: Traces Sparkplug (baseline) compilation batches so you can see when Ignition hands off to native baseline code.
+
+**Output example**:
+```
+[Baseline batch compilation] Enqueued SFI hot with estimated size 96 (current budget: 420/4096)
+[Baseline batch compilation] Compiling current batch of 5 functions
+[compiling method 0x1a2b3c4d <SharedFunctionInfo hot> (target BASELINE)]
+[completed compiling 0x1a2b3c4d <SharedFunctionInfo hot> (target BASELINE) - took 0.045 ms]
+```
+
+**When to use**: Verify that Sparkplug is actually on for your Node build, or to time how long baseline compilation takes before Maglev/TurboFan become eligible.
+
+**Usage**:
+```bash
+node --trace-baseline script.js
+node --trace-baseline --trace-opt script.js  # baseline + Maglev/TurboFan
+```
+
+### 3. `--trace-deopt`
 
 **What it does**: Logs when optimized code deopts and why.
 
@@ -48,7 +78,7 @@ node --trace-deopt script.js
 - `DivisionByZero`: Division by zero check failed
 - `Overflow`: Integer overflow
 
-### 3. `--trace-ic`
+### 4. `--trace-ic`
 
 **What it does**: Logs inline cache state transitions.
 
@@ -72,7 +102,7 @@ node --trace-ic script.js 2>&1 | grep MEGAMORPHIC
 - `POLYMORPHIC` (2-4): Few shapes seen (okay)
 - `MEGAMORPHIC` (5+): Many shapes seen (slow!)
 
-### 4. `--cpu-prof` / `--cpu-prof-dir`
+### 5. `--cpu-prof` / `--cpu-prof-dir`
 
 **What it does**: Generates CPU profiles (Chrome DevTools format).
 
@@ -91,7 +121,7 @@ node --cpu-prof --cpu-prof-dir=./profiles script.js
 
 **When to use**: Identify hot functions; see time distribution.
 
-### 5. `--prof` / `--prof-process`
+### 6. `--prof` / `--prof-process`
 
 **What it does**: V8's built-in statistical profiler.
 
@@ -110,7 +140,7 @@ node --prof-process isolate-*.log > processed.txt
 
 **Note**: Noisier than `--cpu-prof`; requires post-processing.
 
-### 6. `--allow-natives-syntax`
+### 7. `--allow-natives-syntax`
 
 **What it does**: Enables V8 intrinsic functions like `%OptimizeFunctionOnNextCall()`.
 
@@ -131,12 +161,14 @@ hot();  // This call will compile
 hot();  // Verify optimized
 
 const status = %GetOptimizationStatus(hot);
-// status & 1: is function (always 1)
-// status & 2: is never optimize
-// status & 4: is always optimize
-// status & 8: is maybe deoptimized
-// status & 16: is optimized
-// status & 32: is turbofanned
+// Stable bits across recent Node versions:
+//   status & 1: is function (always 1)
+//   status & 2: is never optimize
+//   status & 4: is always optimize
+//   status & 8: is maybe deoptimized
+//   status & 16: is optimized (Sparkplug or higher)
+// Tier-specific bits (Maglev/TurboFan) move around. Inspect
+// deps/v8/src/runtime/runtime.h for the release you're targeting.
 ```
 
 **When to use**: Force optimization for controlled experiments.
@@ -148,7 +180,7 @@ const status = %GetOptimizationStatus(hot);
 
 **Better approach**: Let V8 optimize naturally with enough warmup iterations.
 
-### 7. `--print-opt-code` / `--code-comments`
+### 8. `--print-opt-code` / `--code-comments`
 
 **What it does**: Prints generated machine code (assembly).
 
@@ -161,7 +193,7 @@ node --print-opt-code --code-comments script.js > asm.txt
 
 **Warning**: Very verbose; requires assembly knowledge.
 
-### 8. `--trace-turbo`
+### 9. `--trace-turbo`
 
 **What it does**: Dumps TurboFan compiler intermediate representations.
 
@@ -193,16 +225,27 @@ node --cpu-prof --trace-deopt script.js
 
 ### Reading Optimization Traces
 
+**Sparkplug (`--trace-baseline`)**
 ```
-[marking 0x1a2b3c4d <JSFunction hot (sfi = 0x9e8f7g6h)> for optimization to TURBOFAN, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x1a2b3c4d <SharedFunctionInfo hot> (target BASELINE)]
 ```
+- `target BASELINE`: Sparkplug compiled native code from bytecode
+- These lines appear in batches because Sparkplug compiles groups of functions at a time
+- Pair with `--trace-baseline-batch-compilation` for more context about the queue size
 
-- `marking`: Function queued for optimization
-- `TURBOFAN`: Optimizing compiler
-- `kConcurrent`: Optimizes on background thread
-- `reason: hot and stable`: Why it's being optimized
+**Maglev/TurboFan (`--trace-opt`)**
+```
+[marking 0x1a2b3c4d <JSFunction hot> for optimization to MAGLEV, ConcurrencyMode::kConcurrent, reason: hot and stable]
+[compiling method 0x1a2b3c4d <JSFunction hot> (target MAGLEV), mode: ConcurrencyMode::kConcurrent]
+[completed optimizing 0x1a2b3c4d <JSFunction hot> (target MAGLEV)]
+[marking 0x1a2b3c4d <JSFunction hot> for optimization to TURBOFAN, ConcurrencyMode::kConcurrent, reason: OSR after Maglev]
+```
+- `marking`: Function queued for optimization beyond Sparkplug
+- `target MAGLEV` or `target TURBOFAN`: Which optimizing compiler produced the code
+- `OSR`: On-stack replacement; V8 swapped tiers in the middle of a long-running loop
+- `reason`: Heuristic that triggered tiering (hot and stable, osr after Maglev, etc.)
 
-**Good sign**: Functions marked for optimization quickly.
+**Good sign**: Functions jump to Sparkplug quickly, then tier up predictably as they get hotter.
 
 ### Reading Deopt Traces
 
@@ -304,10 +347,13 @@ Traces are verbose. Filter strategically:
 # Only deopts
 node --trace-deopt script.js 2>&1 | grep -A 2 "deoptimizing"
 
+# Only Sparkplug batches
+node --trace-baseline script.js 2>&1 | grep "(target BASELINE)"
+
 # Only megamorphic transitions
 node --trace-ic script.js 2>&1 | grep MEGAMORPHIC
 
-# Specific function
+# Specific function tiering
 node --trace-opt script.js 2>&1 | grep "hot"
 ```
 
@@ -333,10 +379,14 @@ console.log(`V8: ${process.versions.v8}`);
 ### Recipe 1: "I want to see if my function optimizes"
 
 ```bash
+# Sparkplug events
+node --trace-baseline script.js 2>&1 | grep "yourFunctionName"
+
+# Maglev/TurboFan events
 node --trace-opt script.js 2>&1 | grep "marking.*yourFunctionName"
 ```
 
-If you see `[marking ...]`, it optimized.
+If you see baseline + `marking ...` lines, the function is marching through the tiering pipeline.
 
 ### Recipe 2: "I want to see why my function deopts"
 
@@ -386,12 +436,22 @@ for (let i = 0; i < 100; i++) hot();
 %OptimizeFunctionOnNextCall(hot);
 hot();
 
-console.log('Optimized:', %GetOptimizationStatus(hot) & 16 ? 'yes' : 'no');
+const status = %GetOptimizationStatus(hot);
+const kIsOptimized = 1 << 4;  // Sparkplug or higher
+
+console.log({ status, optimized: !!(status & kIsOptimized) });
 ```
+
+> To differentiate Maglev vs. TurboFan bits, inspect `deps/v8/src/runtime/runtime.h`
+> for the Node release you're targeting; the bit layout shifts frequently.
 
 Run:
 ```bash
+# Force TurboFan (default OptimizeFunctionOnNextCall behavior)
 node --allow-natives-syntax script.js
+
+# Force Maglev (Node 20+/V8 11+ builds only)
+node --allow-natives-syntax --maglev --optimize-on-next-call-optimizes-to-maglev script.js
 ```
 
 ### Recipe 7: "I want to compare optimized vs. deopt timings"

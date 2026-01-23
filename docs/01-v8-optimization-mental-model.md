@@ -13,37 +13,49 @@ JavaScript Source
       ↓
   [Parser]
       ↓
-  Ignition (Interpreter)  ← Executes immediately, collects type feedback
-      ↓                    ↓
-  (Hot function detected)  Type feedback
-      ↓                    ↓
-  TurboFan (Optimizing Compiler) ← Generates specialized machine code
+  Ignition (Interpreter)           ← Executes immediately, gathers feedback
+      ↓                             ↓
+  Sparkplug (Baseline Compiler) ← Fast native code from bytecode
+      ↓                             ↓
+  (Hot enough?) ───────────────→ Maglev (Mid-tier Optimizer)
+      ↓                             ↓
+  (Still hotter?) ─────────────→ TurboFan (Top-tier Optimizer)
       ↓
   Optimized Code
       ↓
   (Assumption violated!)
       ↓
-  [DEOPT] → Back to Ignition
+  [DEOPT/OSR] → Tier down (maybe to Sparkplug or Ignition)
 ```
 
 ### Key Stages
 
 1. **Ignition (Interpreter)**
-   - Executes code quickly without optimization
-   - **Collects type feedback**: "This function always receives integers" "This property access is always on objects with shape X"
-   - Low startup latency
+   - Executes bytecode immediately while V8 parses the file
+   - **Collects type feedback**: "Parameters look like Smis" "Property load saw shape X"
+   - Lowest startup cost, but slower throughput
 
-2. **TurboFan (Optimizing Compiler)**
-   - Triggered when a function becomes "hot" (called many times)
-   - Uses type feedback to make **speculative assumptions**
-   - Generates highly optimized machine code for the observed case
-   - High throughput
+2. **Sparkplug (Baseline Compiler)**
+   - Compiles Ignition bytecode to native machine code quickly
+   - Reuses Ignition's feedback without heavy optimization passes
+   - Acts as the new "default" tier for any code that runs a few times
+   - Supports on-stack replacement (OSR) to tier up without restarting loops
 
-3. **Deoptimization (Bailout)**
-   - When assumptions break, V8 discards optimized code
-   - Falls back to interpreter
-   - Can re-optimize later with updated assumptions
-   - **Repeated deopts on hot paths = performance cliff**
+3. **Maglev (Mid-tier Optimizing Compiler)**
+   - Introduced to cover the gap between Sparkplug and TurboFan
+   - Performs lightweight specialization (type checks, simple inlining)
+   - Much faster to compile than TurboFan, but typically good enough for most production hot paths
+
+4. **TurboFan (Top-tier Optimizing Compiler)**
+   - Reserved for the very hottest, most stable code regions
+   - Runs heavy optimization passes and generates the fastest code, but with noticeable compile cost
+
+5. **Deoptimization (Bailout) & Tier-Down**
+   - When speculative assumptions fail, V8 can drop from TurboFan → Maglev → Sparkplug or even back to Ignition
+   - **OSR exits** gracefully reconstruct state for the lower tier
+   - **Repeated deopts on hot paths = performance cliff**, because V8 stops trying to re-optimize after enough failures
+
+> **Tiering mental model**: Think of Ignition as the bytecode interpreter, Sparkplug as the default baseline compiler, Maglev as a mid-tier optimizer, and TurboFan as the expensive-but-fast specialist. Code may skip tiers (e.g., go Ignition → Sparkplug and stay there) depending on heuristics.
 
 ## Core Concepts
 
