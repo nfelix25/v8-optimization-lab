@@ -1,0 +1,26 @@
+{
+  "name": "node-v8-jit-lab",
+  "version": "1.0.0",
+  "description": "A comprehensive learning repository for Node.js/V8 optimization and deoptimization",
+  "type": "module",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "exp": "node scripts/run-experiment.js",
+    "summarize": "node scripts/summarize-results.js",
+    "test": "node --test"
+  },
+  "keywords": [
+    "v8",
+    "optimization",
+    "deoptimization",
+    "performance",
+    "jit",
+    "turbofan",
+    "node"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}

@@ -1,0 +1,14 @@
+node_modules/
+artifacts/
+*.log
+*.prof
+*.heapsnapshot
+*.cpuprofile
+v8.log
+isolate-*-v8.log
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
